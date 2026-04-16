@@ -67,12 +67,17 @@ const App = () => {
       const bRes = await fetch('/api/budget');
       if (bRes.ok) {
         const bData = await bRes.json();
-        setBudget(bData.amount);
+        if (bData && bData.amount) {
+          setBudget(bData.amount);
+          localStorage.setItem('budget_backup', bData.amount);
+        }
       }
     } catch (err) {
       console.warn('Using offline data:', err);
       const offlineExps = JSON.parse(localStorage.getItem('expenses_backup') || '[]');
       setExpenses(offlineExps);
+      const offlineBudget = localStorage.getItem('budget_backup');
+      if (offlineBudget) setBudget(parseFloat(offlineBudget));
     } finally {
       setLoading(false);
       setTimeout(() => lucide.createIcons(), 100);
@@ -193,42 +198,52 @@ const App = () => {
     };
   }, [expenses]);
 
+  useEffect(() => {
+    lucide.createIcons();
+  }, [expenses, editingExpense, filters, budget]);
+
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      <header className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-lg text-white">
-            <i data-lucide="wallet" className="w-8 h-8"></i>
+    <div className="min-h-screen p-3 md:p-6 lg:p-8">
+      <header className="max-w-6xl mx-auto flex flex-row justify-between items-center mb-6 md:mb-8 gap-2">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="bg-primary p-1.5 md:p-2 rounded-lg text-white">
+            <i data-lucide="wallet" className="w-5 h-5 md:w-8 md:h-8"></i>
           </div>
-          <h1 className="text-2xl font-bold">ExpenseTracker</h1>
+          <h1 className="text-lg md:text-2xl font-bold tracking-tight">ExpenseTracker</h1>
           {isOffline && (
-            <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-xs flex items-center gap-1">
-              <i data-lucide="wifi-off" className="w-3 h-3"></i> Offline
+            <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded text-[10px] md:text-xs flex items-center gap-1">
+              <i data-lucide="wifi-off" className="w-2.5 h-2.5 md:w-3 md:h-3"></i>
+              <span className="hidden xs:inline">Offline</span>
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+            className="p-1.5 md:p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
           >
-            <i data-lucide={isDarkMode ? "sun" : "moon"}></i>
+            <i data-lucide={isDarkMode ? "sun" : "moon"} className="w-4 h-4 md:w-5 md:h-5"></i>
           </button>
           <BudgetConfig budget={budget} setBudget={async (val) => {
              setBudget(val);
-             await fetch('/api/budget', {
-               method: 'PUT',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ amount: val })
-             });
+             localStorage.setItem('budget_backup', val);
+             try {
+               await fetch('/api/budget', {
+                 method: 'PUT',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ amount: val })
+               });
+             } catch (err) {
+               console.error('Failed to save budget to server:', err);
+             }
           }} />
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* Left Column: Stats & Add */}
-        <div className="space-y-8">
+        <div className="space-y-6 md:space-y-8 order-2 lg:order-1">
           <Dashboard stats={stats} budget={budget} expenses={expenses} />
           <ExpenseForm
             onAdd={addExpense}
@@ -239,7 +254,7 @@ const App = () => {
         </div>
 
         {/* Right Column: List & Filters */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-6 md:space-y-8 order-1 lg:order-2">
           <Filters filters={filters} setFilters={setFilters} expenses={expenses} />
           <ExpenseList
             expenses={filteredExpenses}
@@ -322,53 +337,55 @@ const Dashboard = ({ stats, budget, expenses }) => {
     });
   }, [expenses]);
 
-  const percentUsed = Math.min(Math.round((stats.month / budget) * 100), 100);
+  const percentUsed = budget > 0 ? Math.min(Math.round((stats.month / budget) * 100), 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <p className="text-gray-500 text-sm">Today</p>
-          <h3 className="text-xl font-bold">${stats.today.toFixed(2)}</h3>
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
+        <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <p className="text-gray-500 text-[10px] md:text-sm uppercase font-bold tracking-wider">Today</p>
+          <h3 className="text-lg md:text-xl font-bold">${stats.today.toFixed(2)}</h3>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <p className="text-gray-500 text-sm">This Month</p>
-          <h3 className="text-xl font-bold">${stats.month.toFixed(2)}</h3>
+        <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <p className="text-gray-500 text-[10px] md:text-sm uppercase font-bold tracking-wider">Month</p>
+          <h3 className="text-lg md:text-xl font-bold">${stats.month.toFixed(2)}</h3>
         </div>
       </div>
 
       {/* Budget Progress */}
-      <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium">Monthly Budget</span>
-          <span className="text-sm text-gray-500">${stats.month.toFixed(0)} / ${budget}</span>
+          <span className="text-xs md:text-sm font-medium">Monthly Budget</span>
+          <span className="text-[10px] md:text-sm text-gray-500 font-mono">${stats.month.toFixed(0)} / ${budget}</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+        <div className="w-full bg-gray-100 dark:bg-gray-700/50 rounded-full h-2 md:h-2.5">
           <div
-            className={`h-2.5 rounded-full transition-all duration-500 ${percentUsed > 90 ? 'bg-red-500' : 'bg-primary'}`}
+            className={`h-2 md:h-2.5 rounded-full transition-all duration-500 ${percentUsed > 90 ? 'bg-red-500' : 'bg-primary'}`}
             style={{ width: `${percentUsed}%` }}
           ></div>
         </div>
         {percentUsed > 90 && (
-          <p className="text-red-500 text-xs mt-2 flex items-center gap-1">
+          <p className="text-red-500 text-[10px] md:text-xs mt-2 flex items-center gap-1">
             <i data-lucide="alert-triangle" className="w-3 h-3"></i> Budget limit reached!
           </p>
         )}
       </div>
 
       {/* Visuals */}
-      <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <h4 className="text-sm font-bold mb-4">Weekly Spending</h4>
-        <div className="chart-container">
-          <canvas ref={chartRef}></canvas>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <h4 className="text-xs md:text-sm font-bold mb-3 md:mb-4">Weekly Spending</h4>
+          <div className="h-[200px] md:h-[250px] relative w-full">
+            <canvas ref={chartRef}></canvas>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <h4 className="text-sm font-bold mb-4">By Category</h4>
-        <div className="chart-container">
-          <canvas ref={pieRef}></canvas>
+        <div className="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <h4 className="text-xs md:text-sm font-bold mb-3 md:mb-4">By Category</h4>
+          <div className="h-[200px] md:h-[250px] relative w-full">
+            <canvas ref={pieRef}></canvas>
+          </div>
         </div>
       </div>
     </div>
@@ -459,42 +476,42 @@ const ExpenseForm = ({ onAdd, editingExpense, onUpdate, onCancel }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 animate-fade-in">
+    <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 animate-fade-in">
       <h3 className="text-lg font-bold mb-4">{editingExpense ? 'Edit Expense' : 'Add New Expense'}</h3>
 
       {!editingExpense && (
         <div className="mb-6">
-          <label className="text-xs text-gray-500 mb-1 block">Quick Add (e.g. "50 food lunch")</label>
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block uppercase font-bold tracking-wider">Quick Add (e.g. "50 food lunch")</label>
           <input
             type="text"
             value={quickAdd}
             onChange={(e) => setQuickAdd(e.target.value)}
             onKeyDown={handleQuickAdd}
             placeholder="Type and press Enter..."
-            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary outline-none"
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none text-gray-900 dark:text-gray-100"
           />
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">Amount</label>
+            <label className="text-[10px] md:text-xs text-gray-500 mb-1 block uppercase font-bold tracking-wider">Amount</label>
             <input
               type="number"
               step="0.01"
               required
               value={formData.amount}
               onChange={(e) => setFormData({...formData, amount: e.target.value})}
-              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary outline-none"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary outline-none text-gray-900 dark:text-gray-100"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">Category</label>
+            <label className="text-[10px] md:text-xs text-gray-500 mb-1 block uppercase font-bold tracking-wider">Category</label>
             <select
               value={formData.category}
               onChange={(e) => setFormData({...formData, category: e.target.value})}
-              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary outline-none"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary outline-none text-gray-900 dark:text-gray-100"
             >
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -502,30 +519,31 @@ const ExpenseForm = ({ onAdd, editingExpense, onUpdate, onCancel }) => {
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Note (optional)</label>
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block uppercase font-bold tracking-wider">Note (optional)</label>
           <input
             type="text"
             value={formData.note}
             onChange={(e) => setFormData({...formData, note: e.target.value})}
-            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary outline-none"
+            placeholder="What was this for?"
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary outline-none text-gray-900 dark:text-gray-100"
           />
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Date</label>
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block uppercase font-bold tracking-wider">Date</label>
           <input
             type="date"
             required
             value={formData.date}
             onChange={(e) => setFormData({...formData, date: e.target.value})}
-            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary outline-none"
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary outline-none text-gray-900 dark:text-gray-100"
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-2">
           <button
             type="submit"
-            className="flex-1 bg-primary text-white py-2 rounded-lg font-bold hover:opacity-90 transition-opacity"
+            className="flex-1 bg-primary text-white py-2.5 rounded-lg font-bold hover:opacity-90 transition-opacity text-sm shadow-md shadow-primary/20"
           >
             {editingExpense ? 'Update Expense' : 'Add Expense'}
           </button>
@@ -533,7 +551,7 @@ const ExpenseForm = ({ onAdd, editingExpense, onUpdate, onCancel }) => {
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 bg-gray-200 dark:bg-gray-700 rounded-lg"
+              className="px-4 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm font-medium"
             >
               Cancel
             </button>
@@ -567,59 +585,59 @@ const Filters = ({ filters, setFilters, expenses }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-gray-500 mb-1 block">Search</label>
+    <div className="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 items-end gap-3 md:gap-4">
+        <div className="col-span-2 md:col-span-1 lg:col-span-1">
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block">Search</label>
           <div className="relative">
-            <i data-lucide="search" className="w-4 h-4 absolute left-3 top-2.5 text-gray-400"></i>
+            <i data-lucide="search" className="w-3 md:w-4 h-3 md:h-4 absolute left-3 top-2.5 text-gray-400"></i>
             <input
               type="text"
               placeholder="Search notes..."
               value={filters.search}
               onChange={(e) => setFilters({...filters, search: e.target.value})}
-              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg pl-10 pr-4 py-2 outline-none"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm outline-none"
             />
           </div>
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Category</label>
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block">Category</label>
           <select
             value={filters.category}
             onChange={(e) => setFilters({...filters, category: e.target.value})}
-            className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 outline-none"
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 md:px-4 py-2 text-sm outline-none"
           >
-            <option value="All">All Categories</option>
+            <option value="All">All</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">From</label>
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block">From</label>
           <input
             type="date"
             value={filters.startDate}
             onChange={(e) => setFilters({...filters, startDate: e.target.value})}
-            className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 outline-none"
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 md:px-4 py-2 text-sm outline-none"
           />
         </div>
 
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">To</label>
+          <label className="text-[10px] md:text-xs text-gray-500 mb-1 block">To</label>
           <input
             type="date"
             value={filters.endDate}
             onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-            className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 outline-none"
+            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 md:px-4 py-2 text-sm outline-none"
           />
         </div>
 
         <div className="flex gap-2">
-           <button onClick={exportCSV} className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors" title="Export CSV">
+           <button onClick={exportCSV} className="flex-1 md:flex-none p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex justify-center" title="Export CSV">
              <i data-lucide="download" className="w-5 h-5"></i>
            </button>
-           <button onClick={exportJSON} className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors" title="Export JSON">
+           <button onClick={exportJSON} className="flex-1 md:flex-none p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex justify-center" title="Export JSON">
              <i data-lucide="file-json" className="w-5 h-5"></i>
            </button>
         </div>
@@ -633,13 +651,13 @@ const ExpenseList = ({ expenses, onDelete, onEdit }) => {
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left">
-          <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 text-xs uppercase font-bold">
+          <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 text-[10px] md:text-xs uppercase font-bold">
             <tr>
-              <th className="px-6 py-4">Date</th>
-              <th className="px-6 py-4">Category</th>
-              <th className="px-6 py-4">Note</th>
-              <th className="px-6 py-4">Amount</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              <th className="px-3 md:px-6 py-4">Date</th>
+              <th className="px-3 md:px-6 py-4">Category</th>
+              <th className="hidden sm:table-cell px-3 md:px-6 py-4">Note</th>
+              <th className="px-3 md:px-6 py-4">Amount</th>
+              <th className="px-3 md:px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -655,25 +673,25 @@ const ExpenseList = ({ expenses, onDelete, onEdit }) => {
             ) : (
               expenses.map((exp) => (
                 <tr key={exp.id || exp.createdAt} className="hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {new Date(exp.date).toLocaleDateString()}
+                  <td className="px-3 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm">
+                    {new Date(exp.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-3 md:px-6 py-4 whitespace-nowrap">
                     <span className="flex items-center gap-2">
                       <div className={`p-1.5 rounded-md ${getCatColor(exp.category)}`}>
                         <i data-lucide={CATEGORY_ICONS[exp.category] || 'package'} className="w-3.5 h-3.5"></i>
                       </div>
-                      <span className="text-sm font-medium">{exp.category}</span>
+                      <span className="text-xs md:text-sm font-medium">{exp.category}</span>
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-[200px] truncate">
+                  <td className="hidden sm:table-cell px-3 md:px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-[150px] truncate">
                     {exp.note || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-bold text-sm">
+                  <td className="px-3 md:px-6 py-4 whitespace-nowrap font-bold text-xs md:text-sm">
                     ${exp.amount.toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <td className="px-3 md:px-6 py-4 whitespace-nowrap text-right">
+                    <div className="flex justify-end gap-1 md:gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => onEdit(exp)}
                         className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
@@ -702,14 +720,18 @@ const BudgetConfig = ({ budget, setBudget }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [val, setVal] = useState(budget);
 
+  useEffect(() => {
+    setVal(budget);
+  }, [budget]);
+
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm"
+        className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 md:px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm"
       >
         <i data-lucide="settings" className="w-4 h-4"></i>
-        Budget: ${budget}
+        <span className="hidden xs:inline">Budget:</span> ${budget}
       </button>
 
       {isOpen && (
@@ -720,12 +742,15 @@ const BudgetConfig = ({ budget, setBudget }) => {
               type="number"
               value={val}
               onChange={(e) => setVal(e.target.value)}
-              className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none"
+              className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none text-gray-900 dark:text-gray-100"
             />
             <button
               onClick={() => {
-                setBudget(parseFloat(val));
-                setIsOpen(false);
+                const parsed = parseFloat(val);
+                if (!isNaN(parsed) && parsed >= 0) {
+                  setBudget(parsed);
+                  setIsOpen(false);
+                }
               }}
               className="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-bold"
             >
